@@ -41,7 +41,7 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
-    refreshToken: {   //We store the refresh token in DB so we can invalidate it on logout
+    refreshToken: {  //We store the refresh token in DB so we can invalidate it on logout
         type: String,
         default: ''
     }

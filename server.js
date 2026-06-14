@@ -4,6 +4,8 @@ const cors = require('cors')
 const cookieParser = require('cookie-parser')
 const connectDB = require('./config/db')
 const authRoutes = require('./routes/authRoutes')
+const userRoutes = require('./routes/userRoutes')
+const availabilityRoutes = require('./routes/availabilityRoutes')
 
 dotenv.config()
 
@@ -19,6 +21,8 @@ app.use(cookieParser())
 
 // Routes
 app.use('/api/auth', authRoutes)
+app.use('/api/users', userRoutes)
+app.use('/api/availability', availabilityRoutes)
 
 // Any request that starts with `/api/auth` gets handed to `authRoutes`. Then inside authRoutes, the rest of the URL is matched.
 

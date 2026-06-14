@@ -6,8 +6,10 @@ const jwt = require('jsonwebtoken')
 
 //Helper function to generate tokens
 
+//Access token used to let the server know you are logged in ,You prove it by sending the Access Token in the request header and i can ask for my profile dashboard
+
 const generateAccessToken = (userId) => {
-    return jwt.sign({id: userId} , process.env.JWT_SECRET , {expiresIn : '15m'})
+    return jwt.sign({id: userId} , process.env.JWT_SECRET , {expiresIn : '1d'}) //remeber to hange it back to 15m before deploying
 }
 
 //Header — says what algorithm was used to create this token
@@ -133,7 +135,7 @@ const refreshToken = async (req, res) => {
         const token = req.cookies.refreshToken
         if(!token) return res.status(401).json({message : 'No refresh token'})
         
-        //Verify the refresh token
+        //checks if token is vaid or is n0t expired
         const decoded = jwt.verify(token , process.env.JWT_REFRESH_SECRET)
 
         //Check if this token exsist in DB (not logged out)
