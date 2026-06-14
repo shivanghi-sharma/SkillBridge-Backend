@@ -15,14 +15,15 @@ const protect = (req, res, next) => {
     // Extract just the token (remove "Bearer " part)
     const token = authHeader.split(' ')[1]
 
-    // Verify the token - was it created by our server or has it expired
+    // Verify the token - was it created by our server or has it expired?
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
 
     // Attach user id to request object
-    // After verifying, we attach the decoded payload (which has { id: userId }) to the request object. Now any controller that runs after this middleware automatically knows who the user is via req.user.id. No need to pass it manually.
+    // After verifying, we attach the decoded payload (which has { id: userId }) to the request object.
+    //  Now any controller that runs after this middleware automatically knows who the user is via req.user.id. No need to pass it manually.
     req.user = decoded
 
-    // Move on to the controller
+    // tells the express Move on to the controller
     next()
 
   } catch (error) {
