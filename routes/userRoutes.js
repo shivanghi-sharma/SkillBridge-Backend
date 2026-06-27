@@ -8,7 +8,7 @@ const User = require('../models/User')
 // Protected route — must be logged in
 router.get('/profile', protect, async (req, res) => {
   try {
-    // req.user.id comes from the middleware
+    // req.user.id comes from  decoded in the middleware
     const user = await User.findById(req.user.id).select('-password -refreshToken')
     if (!user) return res.status(404).json({ message: 'User not found' })
 
@@ -21,9 +21,10 @@ router.get('/profile', protect, async (req, res) => {
 // Update profile — protected
 router.put('/profile', protect, async (req, res) => {
   try {
+
+    // Find user and update only the fields they sent in the req body and recognize others as undefined
     const { name, bio, skills, hourlyRate, avatar } = req.body
 
-    // Find user and update only the fields they sent
     //`findByIdAndUpdate` — finds the user by their ID (from the token, via middleware) and updates the fields.
     //`{ new: true }` — by default Mongoose returns the OLD document before update. This option tells it to return the UPDATED one instead.
     
@@ -45,6 +46,19 @@ router.get('/sellers', async (req, res) => {
   try {
     const sellers = await User.find({ role: 'seller' }).select('-password -refreshToken')
     res.status(200).json(sellers)
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong' })
+  }
+})
+
+// Get single user by ID
+//this route must go AFTER the /sellers and /profile routes in userRoutes.js. Otherwise /:id will catch 
+// /sellers and /profile requests first and break everything.
+router.get('/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password -refreshToken')
+    if (!user) return res.status(404).json({ message: 'User not found' })
+    res.status(200).json(user)
   } catch (error) {
     res.status(500).json({ message: 'Something went wrong' })
   }

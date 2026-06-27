@@ -24,7 +24,7 @@ const addSlot = async (req, res) => {
 const getSlotsBySeller = async (req, res) => {
     try{
         const slots = await Availability.find({
-            seller: req.params.sellerId,
+            seller: req.params.sellerId, //this comes from URL which consist of Seller ID
             isBooked: false
         })
         res.status(200).json(slots)
