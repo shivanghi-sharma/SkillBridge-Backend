@@ -4,6 +4,9 @@ const express = require('express')
 const router = express.Router()
 const { protect } = require('../middleware/authMiddleware')
 const User = require('../models/User')
+const Review = require('../models/Review')
+const { uploadAvatar, uploadPortfolio } = require('../config/cloudinary')
+
 
 // Protected route — must be logged in
 router.get('/profile', protect, async (req, res) => {
@@ -51,6 +54,50 @@ router.get('/sellers', async (req, res) => {
   }
 })
 
+const Review = require('../models/Review')
+
+// Search + filter sellers
+router.get('/search', async (req, res) => {
+  try {
+    const { skills, minPrice, maxPrice, minRating } = req.query
+
+    // Build filter object dynamically
+    const filter = { role: 'seller' }
+
+    // Filter by skills
+    if (skills) {
+      const skillArray = skills.split(',').map(s => s.trim())
+      filter.skills = { $in: skillArray }
+    }
+
+    // Filter by price range
+    if (minPrice) filter.hourlyRate = { ...filter.hourlyRate, $gte: Number(minPrice) }
+    if (maxPrice) filter.hourlyRate = { ...filter.hourlyRate, $lte: Number(maxPrice) }
+
+    let sellers = await User.find(filter).select('-password -refreshToken')
+
+    // Filter by rating — we calculate average from reviews
+    if (minRating) {
+      const sellersWithRating = await Promise.all(
+        sellers.map(async (seller) => {
+          const reviews = await Review.find({ seller: seller._id })
+          const avg = reviews.length > 0
+            ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+            : 0
+          return { seller, avg }
+        })
+      )
+      sellers = sellersWithRating
+        .filter(s => s.avg >= Number(minRating))
+        .map(s => s.seller)
+    }
+
+    res.status(200).json(sellers)
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong' })
+  }
+})
+
 // Get single user by ID
 //this route must go AFTER the /sellers and /profile routes in userRoutes.js. Otherwise /:id will catch 
 // /sellers and /profile requests first and break everything.
@@ -59,6 +106,86 @@ router.get('/:id', async (req, res) => {
     const user = await User.findById(req.params.id).select('-password -refreshToken')
     if (!user) return res.status(404).json({ message: 'User not found' })
     res.status(200).json(user)
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong' })
+  }
+})
+
+
+// Upload profile photo
+router.post('/upload/avatar', protect, uploadAvatar.single('avatar'), async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { avatar: req.file.path },
+      { new: true }
+    ).select('-password -refreshToken')
+
+    res.status(200).json({ message: 'Avatar uploaded', user })
+  } catch (error) {
+    res.status(500).json({ message: 'Upload failed' })
+  }
+})
+
+// Upload portfolio PDF
+router.post('/upload/portfolio', protect, uploadPortfolio.single('portfolio'), async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { portfolio: req.file.path },
+      { new: true }
+    ).select('-password -refreshToken')
+
+    res.status(200).json({ message: 'Portfolio uploaded', user })
+  } catch (error) {
+    res.status(500).json({ message: 'Upload failed' })
+  }
+})
+
+ //adding pagination to search route in userRoutes.js
+ 
+  router.get('/search', async (req, res) => {
+  try {
+    const { skills, minPrice, maxPrice, minRating, page = 1, limit = 9 } = req.query
+
+    const filter = { role: 'seller', suspended: false }
+
+    if (skills) {
+      const skillArray = skills.split(',').map(s => s.trim())
+      filter.skills = { $in: skillArray }
+    }
+
+    if (minPrice) filter.hourlyRate = { ...filter.hourlyRate, $gte: Number(minPrice) }
+    if (maxPrice) filter.hourlyRate = { ...filter.hourlyRate, $lte: Number(maxPrice) }
+
+    let sellers = await User.find(filter)
+      .select('-password -refreshToken')
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+
+    if (minRating) {
+      const sellersWithRating = await Promise.all(
+        sellers.map(async (seller) => {
+          const reviews = await Review.find({ seller: seller._id })
+          const avg = reviews.length > 0
+            ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+            : 0
+          return { seller, avg }
+        })
+      )
+      sellers = sellersWithRating
+        .filter(s => s.avg >= Number(minRating))
+        .map(s => s.seller)
+    }
+
+    const total = await User.countDocuments(filter)
+
+    res.status(200).json({
+      sellers,
+      totalPages: Math.ceil(total / limit),
+      currentPage: Number(page),
+      total
+    })
   } catch (error) {
     res.status(500).json({ message: 'Something went wrong' })
   }

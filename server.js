@@ -10,10 +10,28 @@ const userRoutes = require('./routes/userRoutes')
 const availabilityRoutes = require('./routes/availabilityRoutes')
 const bookingRoutes = require('./routes/bookingRoutes')
 const reviewRoutes = require('./routes/reviewRoutes')
+const paymentRoutes = require('./routes/paymentRoutes')
+const startAutoRelease = require('./utils/autoRelease')
+const helmet = require('helmet')
+const rateLimit = require('express-rate-limit')
 
 dotenv.config() //lets you read secret values from .env
 
 const app = express() //creates the server
+
+// Security headers
+app.use(helmet())
+
+// Rate limiting — max 100 requests per 15 minutes per IP
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { message: 'Too many requests, please try again later' }
+})
+app.use('/api', limiter)
+
+const adminRoutes = require('./routes/adminRoutes')
+app.use('/api/admin', adminRoutes)
 
 //Create HTTP server manually - needed for socket.io
 const server = http.createServer(app)
@@ -40,6 +58,7 @@ app.use('/api/users', userRoutes)
 app.use('/api/availability' , availabilityRoutes)
 app.use('/api/bookings',bookingRoutes)
 app.use('/api/reviews', reviewRoutes)
+app.use('/api/payments', paymentRoutes)
 
 // Any request that starts with `/api/auth` gets handed to `authRoutes`. Then inside authRoutes, the rest of the URL is matched.
 
@@ -52,6 +71,9 @@ app.use('/api/reviews', reviewRoutes)
 app.get('/', (req, res) => {
   res.send('SkillBridge API is running')
 })
+
+// Start cron job
+startAutoRelease()
 
 //Socket.io logic 
 io.on('connection',(socket)=> {
@@ -81,6 +103,14 @@ io.on('connection',(socket)=> {
 
 //Export io so we can use it in other files if needed
 module.export = {io}
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack)
+  res.status(err.status || 500).json({
+    message: err.message || 'Internal server error'
+  })
+})
 
 const PORT = process.env.PORT || 5000
 server.listen(PORT, () => {

@@ -44,7 +44,15 @@ const userSchema = new mongoose.Schema({
     refreshToken: {  //We store the refresh token in DB so we can invalidate it on logout
         type: String,
         default: ''
-    }
+    },
+    portfolio: {
+    type: String,
+    default: ''
+   }, 
+   suspended: {
+  type: Boolean,
+  default: false
+   }
 }, {timestamps: true})
 
 //Create a User model using this schema and make it available to the entire project
