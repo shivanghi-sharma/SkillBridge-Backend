@@ -1,31 +1,45 @@
 const Booking = require('../models/Booking')
 const Availability = require('../models/Availability')
+const Notification = require('../models/Notification')
+const User = require('../models/User')
 
 // Buyer creates a booking
 const createBooking = async (req, res) => {
   try {
-    const { sellerId, slotId, message } = req.body
+    const { sellerId, bookingDate, bookingTime, message } = req.body
 
-    // Check if slot exists and is still available
-    const slot = await Availability.findById(slotId)
-    if (!slot) return res.status(404).json({ message: 'Slot not found' })
-    if (slot.isBooked) return res.status(400).json({ message: 'Slot already booked' })
+    // Fetch seller to get their sessionDuration
+    const seller = await User.findById(sellerId)
+    if (!seller) return res.status(404).json({ message: 'Seller not found' })
+
+    const duration = seller.sessionDuration || 60
 
     // Create the booking
     const booking = await Booking.create({
       buyer: req.user.id,
       seller: sellerId,
-      slot: slotId,
+      bookingDate,
+      bookingTime,
+      duration,
       message
     })
 
-    // Mark slot as booked so nobody else can book it
-    slot.isBooked = true
-    await slot.save()
+    // Create Notification for the seller
+    const notification = await Notification.create({
+      recipient: sellerId,
+      type: 'booking',
+      message: `You have a new booking request.`,
+      link: `/chat/${booking._id}`,
+      relatedId: booking._id
+    })
+    const io = req.app.get('io')
+    if (io) {
+      io.to(sellerId.toString()).emit('new_notification', notification)
+    }
 
     res.status(201).json({ message: 'Booking created', booking })
   } catch (error) {
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.status(500).json({ message: error.message || 'Something went wrong', error: error.message })
   }
 }
 
@@ -37,7 +51,6 @@ const getMyBookings = async (req, res) => {
     })
       .populate('buyer', 'name email avatar')
       .populate('seller', 'name email avatar skills hourlyRate')
-      .populate('slot', 'day startTime endTime')
       .sort({ createdAt: -1 })
 
     res.status(200).json(bookings)
@@ -52,7 +65,6 @@ const getBookingById = async (req, res) => {
     const booking = await Booking.findById(req.params.bookingId)
       .populate('buyer', 'name email avatar')
       .populate('seller', 'name email avatar skills hourlyRate')
-      .populate('slot', 'day startTime endTime')
 
     if (!booking) return res.status(404).json({ message: 'Booking not found' })
 
@@ -88,13 +100,24 @@ const updateBookingStatus = async (req, res) => {
 
     if (status === 'cancelled') {
       if (!isSeller && !isBuyer) return res.status(403).json({ message: 'Not allowed' })
-
-      // Free up the slot again if cancelled
-      await Availability.findByIdAndUpdate(booking.slot, { isBooked: false })
     }
 
     booking.status = status
     await booking.save()
+
+    // Notify the other party
+    const notifyUser = isSeller ? booking.buyer : booking.seller;
+    const notification = await Notification.create({
+      recipient: notifyUser,
+      type: 'booking',
+      message: `Your booking status was updated to ${status}.`,
+      link: `/chat/${booking._id}`,
+      relatedId: booking._id
+    })
+    const io = req.app.get('io')
+    if (io) {
+      io.to(notifyUser.toString()).emit('new_notification', notification)
+    }
 
     res.status(200).json({ message: 'Booking updated', booking })
   } catch (error) {

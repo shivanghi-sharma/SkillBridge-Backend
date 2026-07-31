@@ -25,7 +25,14 @@ const generateRefreshToken = (userId) => {
 
 const register = async(req , res) => {
     try {
-        const{name , email , password , role} = req.body 
+        const{name , email , password , role, bio, skills} = req.body 
+
+        let parsedSkills = []
+        if (skills) {
+            parsedSkills = typeof skills === 'string' ? skills.split(',').map(s => s.trim()) : skills
+        }
+
+        const resume = req.file ? req.file.path : ''
 
         //Check if the user exists
         const existingUser = await User.findOne({ email })
@@ -42,7 +49,10 @@ const register = async(req , res) => {
             name,
             email,
             password: hashedPassword,
-            role: role || 'buyer'
+            role: role || 'buyer',
+            bio: bio || '',
+            skills: parsedSkills,
+            resume
         })
 
         res.status(201).json({message: 'User registered successfully' , userId: user._id})    
@@ -110,7 +120,7 @@ const logout  = async (req, res) => {
     try {
         //Clear the cookie with refresh token
         const token = req.cookies.refreshToken 
-        if(! token) return res.status(204).josn({message: 'no token found'})
+        if(! token) return res.status(204).json({message: 'no token found'})
 
     //Remove refresh token from DB
     const user = await User.findOne({refreshToken: token})
@@ -142,7 +152,7 @@ const refreshToken = async (req, res) => {
 
         //Check if this token exsist in DB (not logged out)
         const user = await User.findOne({_id: decoded.id , refreshToken: token})
-        if(!user) return res.ststus(403).json({message: 'Invalid refresh token'})
+        if(!user) return res.status(403).json({message: 'Invalid refresh token'})
 
        //Issue a new access token
 

@@ -11,9 +11,16 @@ const bookingSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  slot: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Availability',
+  bookingDate: {
+    type: String, // e.g., "YYYY-MM-DD"
+    required: true
+  },
+  bookingTime: {
+    type: String, // e.g., "14:30"
+    required: true
+  },
+  duration: {
+    type: Number, // in minutes
     required: true
   },
   status: {

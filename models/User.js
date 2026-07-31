@@ -26,8 +26,8 @@ const userSchema = new mongoose.Schema({
         default: 'buyer'
     },
     bio: {
-        type: [String],
-        default: []
+        type: String,
+        default: ''
     },
     skills: {
         type: [String],
@@ -38,6 +38,10 @@ const userSchema = new mongoose.Schema({
         defalut: 0
     },
     avatar: {           //URL to profile picture (we'll add upload later)
+        type: String,
+        default: ''
+    },
+    resume: {
         type: String,
         default: ''
     },
@@ -52,6 +56,10 @@ const userSchema = new mongoose.Schema({
    suspended: {
   type: Boolean,
   default: false
+   },
+   sessionDuration: {
+    type: Number,
+    default: 60
    }
 }, {timestamps: true})
 

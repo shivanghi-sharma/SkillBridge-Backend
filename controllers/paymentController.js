@@ -3,6 +3,7 @@ const crypto = require('crypto')
 const Payment = require('../models/Payment')
 const Booking = require('../models/Booking')
 const Dispute = require('../models/Dispute')
+const Notification = require('../models/Notification')
 
 // Razorpay REST client setup — using axios instead of their broken SDK
 const razorpayAPI = axios.create({
@@ -30,7 +31,17 @@ const createOrder = async (req, res) => {
     const existing = await Payment.findOne({ booking: bookingId })
     if (existing) return res.status(400).json({ message: 'Payment already exists' })
 
-    const amount = booking.seller.hourlyRate * 100 // paise
+    const hourlyRate = booking.seller.hourlyRate || 0
+    const duration = booking.duration || 60
+    
+    // Calculate amount based on hourly rate and duration (in minutes)
+    // Formula: (hourlyRate * 100) * (duration / 60)
+    let amount = Math.round((hourlyRate * 100) * (duration / 60))
+    
+    // Razorpay requires a minimum amount of 100 paise (1 INR)
+    if (amount < 100) {
+        amount = 100 // Set minimum to 1 INR if it's a free or very cheap session
+    }
 
     // Create order via Razorpay REST API directly
     const { data: order } = await razorpayAPI.post('/orders', {
@@ -43,7 +54,7 @@ const createOrder = async (req, res) => {
       booking: bookingId,
       buyer: req.user.id,
       seller: booking.seller._id,
-      amount: booking.seller.hourlyRate,
+      amount: amount / 100, // store in INR
       razorpayOrderId: order.id,
       status: 'PENDING'
     })
@@ -55,7 +66,8 @@ const createOrder = async (req, res) => {
       paymentId: payment._id
     })
   } catch (error) {
-    res.status(500).json({ message: 'Something went wrong', error: error.response?.data || error.message })
+    const errorMsg = error.response?.data?.error?.description || error.message || 'Payment creation failed'
+    res.status(500).json({ message: errorMsg, error: error.response?.data || error.message })
   }
 }
 
@@ -63,7 +75,7 @@ const createOrder = async (req, res) => {
 
 const verifyPayment = async (req,res) => {
     try{
-        const {razorOderId , razorpayPaymentId, razorSignature , bookingId} = req.body
+        const { razorpayOrderId, razorpayPaymentId, razorpaySignature, bookingId } = req.body
     // === THIS IS THE IMPORTANT PART  ===
     // Razorpay sends a signature which is a HMAC-SHA256 hash of:
     // razorpayOrderId + "|" + razorpayPaymentId
@@ -103,7 +115,20 @@ const verifyPayment = async (req,res) => {
     )
 
     //Also update booking status to confirmed
-    await Booking.fidByIdAndUpdate(bookingId, { status: 'confirmed'})
+    const updatedBooking = await Booking.findByIdAndUpdate(bookingId, { status: 'confirmed' })
+
+    // Notify seller
+    const notification = await Notification.create({
+      recipient: updatedBooking.seller,
+      type: 'payment',
+      message: `Payment successful for your session.`,
+      link: `/chat/${bookingId}`,
+      relatedId: payment._id
+    })
+    const io = req.app.get('io')
+    if (io) {
+      io.to(updatedBooking.seller.toString()).emit('new_notification', notification)
+    }
 
     res.status(200).json({message: 'Payment verified. Amount is held', payment})
     }

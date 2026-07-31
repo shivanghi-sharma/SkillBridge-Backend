@@ -12,7 +12,7 @@ const addSlot = async (req, res) => {
             endTime
         })
 
-        res.status(201).json({messgae: 'Slot added' , slot})
+        res.status(201).json({message: 'Slot added' , slot})
 
     }
     catch(error) {

@@ -26,14 +26,14 @@ router.put('/profile', protect, async (req, res) => {
   try {
 
     // Find user and update only the fields they sent in the req body and recognize others as undefined
-    const { name, bio, skills, hourlyRate, avatar } = req.body
+    const { name, bio, skills, hourlyRate, avatar, sessionDuration } = req.body
 
     //`findByIdAndUpdate` — finds the user by their ID (from the token, via middleware) and updates the fields.
     //`{ new: true }` — by default Mongoose returns the OLD document before update. This option tells it to return the UPDATED one instead.
     
     const updatedUser = await User.findByIdAndUpdate(
       req.user.id,
-      { name, bio, skills, hourlyRate, avatar },
+      { name, bio, skills, hourlyRate, avatar, sessionDuration },
       { new: true }
     ).select('-password -refreshToken')
 
@@ -54,15 +54,13 @@ router.get('/sellers', async (req, res) => {
   }
 })
 
-const Review = require('../models/Review')
-
-// Search + filter sellers
+// Search + filter sellers (with pagination)
 router.get('/search', async (req, res) => {
   try {
-    const { skills, minPrice, maxPrice, minRating } = req.query
+    const { skills, minPrice, maxPrice, minRating, page = 1, limit = 14 } = req.query
 
     // Build filter object dynamically
-    const filter = { role: 'seller' }
+    const filter = { role: 'seller', suspended: false }
 
     // Filter by skills
     if (skills) {
@@ -74,25 +72,42 @@ router.get('/search', async (req, res) => {
     if (minPrice) filter.hourlyRate = { ...filter.hourlyRate, $gte: Number(minPrice) }
     if (maxPrice) filter.hourlyRate = { ...filter.hourlyRate, $lte: Number(maxPrice) }
 
-    let sellers = await User.find(filter).select('-password -refreshToken')
+    let sortObj = { createdAt: -1 }; // default sort by newest
+    if (req.query.sortBy === 'price_asc') sortObj.hourlyRate = 1;
+    if (req.query.sortBy === 'price_desc') sortObj.hourlyRate = -1;
 
-    // Filter by rating — we calculate average from reviews
+    let sellers = await User.find(filter)
+      .select('-password -refreshToken')
+      .sort(sortObj)
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+
+    // Always fetch ratings
+    const sellersWithRating = await Promise.all(
+      sellers.map(async (seller) => {
+        const reviews = await Review.find({ seller: seller._id })
+        const avg = reviews.length > 0
+          ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+          : 0
+        return { ...seller.toObject(), avgRating: avg, totalReviews: reviews.length }
+      })
+    )
+
+    sellers = sellersWithRating;
+
+    // Filter by rating if minRating is provided
     if (minRating) {
-      const sellersWithRating = await Promise.all(
-        sellers.map(async (seller) => {
-          const reviews = await Review.find({ seller: seller._id })
-          const avg = reviews.length > 0
-            ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-            : 0
-          return { seller, avg }
-        })
-      )
-      sellers = sellersWithRating
-        .filter(s => s.avg >= Number(minRating))
-        .map(s => s.seller)
+      sellers = sellers.filter(s => s.avgRating >= Number(minRating));
     }
 
-    res.status(200).json(sellers)
+    const total = await User.countDocuments(filter)
+
+    res.status(200).json({
+      sellers,
+      totalPages: Math.ceil(total / limit),
+      currentPage: Number(page),
+      total
+    })
   } catch (error) {
     res.status(500).json({ message: 'Something went wrong' })
   }
@@ -142,54 +157,7 @@ router.post('/upload/portfolio', protect, uploadPortfolio.single('portfolio'), a
   }
 })
 
- //adding pagination to search route in userRoutes.js
- 
-  router.get('/search', async (req, res) => {
-  try {
-    const { skills, minPrice, maxPrice, minRating, page = 1, limit = 9 } = req.query
 
-    const filter = { role: 'seller', suspended: false }
-
-    if (skills) {
-      const skillArray = skills.split(',').map(s => s.trim())
-      filter.skills = { $in: skillArray }
-    }
-
-    if (minPrice) filter.hourlyRate = { ...filter.hourlyRate, $gte: Number(minPrice) }
-    if (maxPrice) filter.hourlyRate = { ...filter.hourlyRate, $lte: Number(maxPrice) }
-
-    let sellers = await User.find(filter)
-      .select('-password -refreshToken')
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-
-    if (minRating) {
-      const sellersWithRating = await Promise.all(
-        sellers.map(async (seller) => {
-          const reviews = await Review.find({ seller: seller._id })
-          const avg = reviews.length > 0
-            ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-            : 0
-          return { seller, avg }
-        })
-      )
-      sellers = sellersWithRating
-        .filter(s => s.avg >= Number(minRating))
-        .map(s => s.seller)
-    }
-
-    const total = await User.countDocuments(filter)
-
-    res.status(200).json({
-      sellers,
-      totalPages: Math.ceil(total / limit),
-      currentPage: Number(page),
-      total
-    })
-  } catch (error) {
-    res.status(500).json({ message: 'Something went wrong' })
-  }
-})
 
 module.exports = router
 
