@@ -5,7 +5,7 @@ const Availability = require('./models/Availability')
 
 dotenv.config()
 
-mongoose.connect(process.env.MONGO_URI || 'mongodb+srv://sharmavivek23445:q1N89C54h9cZ8V64@cluster0.te2ze2h.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
+mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.log(err))
 
@@ -31,8 +31,8 @@ const seed = async () => {
         // Give them 2 random slots
         const day1 = days[Math.floor(Math.random() * days.length)]
         let day2 = days[Math.floor(Math.random() * days.length)]
-        while(day2 === day1) {
-            day2 = days[Math.floor(Math.random() * days.length)]
+        while (day2 === day1) {
+          day2 = days[Math.floor(Math.random() * days.length)]
         }
 
         const time1 = times[Math.floor(Math.random() * times.length)]
@@ -56,7 +56,7 @@ const seed = async () => {
         added++
       }
     }
-    
+
     console.log(`Added availability for ${added} sellers!`)
     process.exit(0)
   } catch (err) {
