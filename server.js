@@ -131,4 +131,4 @@ server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
 
-//flow = request -> middleWare(check token) -> routes(which logic to launch or redirect to) -> Controller(actual logic) // Restart nodemon
+//flow = request -> middleWare(check token) -> routes(which logic to launch or redirect to) -> Controller(actual logic) // Restart nodemon 

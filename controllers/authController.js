@@ -66,7 +66,8 @@ const register = async(req , res) => {
 
 const login = async (req, res) => {
     try {
-        const {email , password} = req.body
+        let {email , password} = req.body
+        email = email.trim().toLowerCase()
         
         //check if user exists
 
