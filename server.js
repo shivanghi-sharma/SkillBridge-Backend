@@ -42,7 +42,7 @@ const server = http.createServer(app)
 //Attach socket.io to the server
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true
   }
 })
@@ -54,7 +54,21 @@ app.set('io', io)
 connectDB()
 
 // Middlewares
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true })) //allows backend to talk to frontend by allowing incoming req from PORT 5173
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://skill-bridge-frontend-liard.vercel.app'  // replace with your actual Vercel URL
+]
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
+  credentials: true
+}))
 app.use(express.json()) //converts json into JS object for express to understand and validate req.body
 app.use(cookieParser()) //reads cookies from the browser
 
